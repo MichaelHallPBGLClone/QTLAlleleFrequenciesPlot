@@ -306,3 +306,74 @@ function (file, chromList = NULL, filename = NULL, filter = NULL, windowsize = N
   assign("SNPset", value = SNPset, envir = globalenv())
 }                                      
                                       
+
+                                      
+                                      
+#' @title Obs_Allele_Freq2
+#' @description Returns a 4 column data filtering for specific Chromosome and High Bulk Observed Allele Frequencies
+#' @param SNPSet A SNPSet generated from the function importFromTable
+#' @param ChromosomeValue Input a Specific Chromosome Value
+#' @param threshold Input a Specific Allele Frequency Threshold value from the High Bulk High Parent
+#' @param pvalueThresh Upper limit on pvalue for Gprime Statistic
+#' @export Obs_Allele_Freq2
+
+Obs_Allele_Freq2 <-
+  function (SNPSet, ChromosomeValue, threshold, pvalueThresh) 
+  {
+    frame <- SNPSet %>% dplyr::mutate(LowRef = AD_REF.LOW, HighRef = AD_REF.HIGH, 
+                                      LowAlt = AD_ALT.LOW, HighAlt = AD_ALT.HIGH) %>% select(CHROM, 
+                                                                                             POS, LowRef, HighRef, LowAlt, HighAlt, pvalue)
+    Obs <- seq(from = 1, to = length(frame))
+    p1 <- ((frame$LowAlt)/(frame$LowRef + frame$LowAlt))
+    p1 <- round(p1, 3)
+    p2 <- ((frame$HighAlt)/(frame$HighRef + frame$HighAlt))
+    p2 <- round(p2, 3)
+    diff <- p2 - p1
+    Chrom <- SNPSet %>% dplyr::select(CHROM)
+    POS <- SNPSet %>% dplyr::select(POS)
+    pvalue <- SNPSet %>% dplyr::select(pvalue)
+    AD_High1 <- data.frame(SNPSet$AD_ALT.HIGH, SNPSet$AD_REF.HIGH)
+    AD_High1$AD_High <- paste(AD_High1$SNPSet.AD_REF.HIGH, AD_High1$SNPSet.AD_ALT.HIGH, 
+                              sep = ",")
+    AD_High <- subset(AD_High1, select = -c(SNPSet.AD_ALT.HIGH, 
+                                            SNPSet.AD_REF.HIGH))
+    AD_Low1 <- data.frame(SNPSet$AD_REF.LOW, SNPSet$AD_ALT.LOW)
+    AD_Low1$AD_Low <- paste(AD_Low1$SNPSet.AD_REF.LOW, AD_Low1$SNPSet.AD_ALT.LOW, 
+                            sep = ",")
+    AD_Low <- subset(AD_Low1, select = -c(SNPSet.AD_REF.LOW, 
+                                          SNPSet.AD_ALT.LOW))
+    Gprime <- SNPSet %>% select(Gprime)
+    Gprime <- round(Gprime, 3)
+    REF <- SNPSet$REF
+    ALT <- SNPSet$ALT
+    Subst <- paste0(REF, "____>", ALT)
+    SNP_Observations <- seq(from = 1, to = length(p1), by = 1)
+    data <- cbind(Chrom, POS, p1, p2, Subst, diff, AD_High, AD_Low, 
+                  Gprime, SNP_Observations, pvalue)
+    data <- as.data.frame(data)
+    data <- data %>% arrange(desc(Gprime), Chrom, POS, p1, p2, 
+                             pvalue, diff, AD_High, AD_Low)
+    data <- data[(as.matrix(data[1]) %in% ChromosomeValue), ]
+    data <- data[(as.matrix(data[4]) > threshold), ]
+    data <- data[(as.matrix(data[11]) < pvalueThresh), ]
+    e <- ggplot(data = data, aes(x = SNP_Observations, y = p1)) + 
+      geom_point(aes(color = factor(CHROM))) + theme_bw() + 
+      labs(x = "SNP", y = "Allele Frequency", title = "Low Bulk Observed High Parent Allele Frequency")
+    print(e)
+    SNP_Observations <- seq(from = 1, to = length(p2), by = 1)
+    data <- cbind(Chrom, POS, p1, p2, Subst, AD_High, AD_Low, 
+                  Gprime, SNP_Observations, pvalue)
+    data <- as.data.frame(data)
+    data <- data %>% arrange(desc(Gprime), Chrom, POS, p1, p2, 
+                             pvalue, Subst, AD_High, AD_Low)
+    data <- data[(as.matrix(data[1]) %in% ChromosomeValue), ]
+    data <- data[(as.matrix(data[4]) > threshold), ]
+    data <- data[(as.matrix(data[10]) < pvalueThresh), ]
+    e1 <- ggplot(data = data, aes(x = SNP_Observations, y = p2)) + 
+      geom_point(aes(color = factor(CHROM))) + 
+      theme_bw() + labs(x = "SNP", y = "Allele Frequency", 
+                        title = "High Bulk Observed High Parent Allele Frequency")
+    print(e1)
+    return(data)
+  }
+
